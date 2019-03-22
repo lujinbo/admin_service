@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta name="HandheldFriendly" content="true">
+    <meta name="viewport" content="maximum-scale=1.0,minimum-scale=1.0,user-scalable=0,width=device-width,initial-scale=1.0"/>
+    <meta content="yes" name="apple-mobile-web-app-capable"/>
+    <meta content="black" name="apple-mobile-web-app-status-bar-style"/>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <title>Dummy安全中心</title>
+</head>
+<body>
+    <div id="app" v-loading.fullscreen.lock="fullscreenLoading">
+        
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/vue"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script type="text/javascript">
+    var $_GET = (function(){
+    var url = window.document.location.href.toString();
+    var u = url.split("?");
+    if(typeof(u[1]) == "string"){
+        u = u[1].split("&");
+        var get = {};
+        for(var i in u){
+            var j = u[i].split("=");
+            get[j[0]] = j[1];
+        }
+        return get;
+    } else {
+        return {};
+    }
+})();
+const CHECK_SIGN = 'index.php?a=Admin&m=checkSignature'
+const CHECK_LOGIN = 'index.php?a=Admin&m=checkLogin'
+var app = new Vue({
+    el: '#app',
+    data: {
+        fullscreenLoading: false,
+        is_test:false
+    },
+    methods:{
+        handleMode(){
+            //登录
+            if ($_GET.hasOwnProperty('id')) {
+                //先检查本地是否有签名
+                let user_name = localStorage.getItem('dummy_user_name')
+                if (user_name == null) {
+                    this.fullscreenLoading = false
+                    this.$notify.error({ title: '错误', message: '请先绑定令牌!' })
+                    return false
+                }
+                let signature = localStorage.getItem('dummy_'+user_name)
+                if (signature == null) {
+                    this.fullscreenLoading = false
+                    this.$notify.error({ title: '错误', message: '找不到签名，请先绑定令牌!' })
+                    return false
+                }
+                let id = $_GET.id
+                this.scanLogin(id,user_name,signature)
+                return false
+            }
+            //绑定
+            if ($_GET.hasOwnProperty('user_name') && $_GET.hasOwnProperty('signature')) {
+                let user_name = $_GET.user_name
+                let signature = $_GET.signature
+                this.checkSignature(user_name,signature)
+                return false
+            }
+            //默认
+            this.fullscreenLoading = false
+            this.$notify.error({
+                title: '错误',
+                message: '参数不全'
+            })
+        },
+        checkSignature(user_name,signature){
+            let pamas = { user_name:user_name,'signature':signature }
+            axios.post(this.api_host + CHECK_SIGN, pamas).then((res) => {
+                this.fullscreenLoading = false
+                if (res.data.status == 200) {
+                    localStorage.setItem('dummy_user_name',user_name)
+                    localStorage.setItem('dummy_'+user_name,signature)
+                    this.$notify({ title: '成功', message: '绑定成功，2s后页面将自行关闭', type: 'success' })
+                    setTimeout(() => {
+                        WeixinJSBridge.call('closeWindow')
+                    }, 2000)
+                }else{
+                    this.$notify.error({ title: '错误', message: '非法签名' })
+                }
+            })
+        },
+        scanLogin(id,user_name,signature){
+            let pamas = { id:id,user_name:user_name,signature:signature }
+            axios.post(this.api_host + CHECK_LOGIN, pamas).then((res) => {
+                this.fullscreenLoading = false
+                if (res.data.status == 200) {
+                    this.$notify({ title: '成功', message: '登录成功，2s后页面将自行关闭', type: 'success' })
+                    setTimeout(() => {
+                        WeixinJSBridge.call('closeWindow')
+                    }, 2000)
+                }else{
+                    this.$notify.error({ title: '错误', message: res.data.msg })
+                }
+            })
+        }
+    },
+    computed:{
+        api_host(){
+            return this.is_test ? 'http://139.180.133.174:8080/' : 'http://139.180.133.174:8080/'
+        }
+    },
+    mounted(){
+        this.fullscreenLoading = true;
+        this.handleMode()
+    }
+})
+</script>
+</html>
